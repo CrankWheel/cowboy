@@ -1047,7 +1047,13 @@ response(Status, Headers, RespHeaders, DefaultHeaders, Body, Req=#http_req{
 				(status(Status2))/binary, "\r\n" >>,
 			HeaderLines = [[Key, <<": ">>, Value, <<"\r\n">>]
 				|| {Key, Value} <- FullHeaders2],
-			ok = Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>, Body2]),
+			case Transport:send(Socket, [StatusLine, HeaderLines, <<"\r\n">>, Body2]) of
+				% If the connection gets closed while or before we send, pretend we
+			    % sent the data, so that we don't crash and whatever handler is handling
+			    % this request gets a terminate/3 call with Reason set to {error, closed}.
+			    ok -> ok;
+			    {error, closed} -> ok
+			end,
 			ReqPid ! {?MODULE, resp_sent},
 			normal;
 		_ ->
